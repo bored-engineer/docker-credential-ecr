@@ -1,4 +1,4 @@
-module github.com/bored-engineer/docker-credential-ecr
+module github.com/coatestiger/docker-credential-ecr
 
 go 1.22.2
 
