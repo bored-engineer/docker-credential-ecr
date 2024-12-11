@@ -87,6 +87,6 @@ func NewAuthenticator(client *ecr.Client) authn.Authenticator {
 	}
 	return &ecrAuthenticator{
 		client: client,
-		maxTTL: ttl * time.Minute,
+		maxTTL: time.Duration(ttl) * time.Minute,
 	}
 }
