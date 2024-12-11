@@ -35,7 +35,7 @@ type cachedAuthConfig struct {
 // It caches the authorization token until it expires reducing the round-trips to ECR.
 type ecrAuthenticator struct {
 	client ecrClient
-	maxTTL time.Time
+	maxTTL time.Duration
 	cache  atomic.Pointer[cachedAuthConfig]
 }
 
