@@ -5,6 +5,8 @@ import (
 	"encoding/base64"
 	"errors"
 	"fmt"
+	"os"
+	"strconv"
 	"strings"
 	"sync/atomic"
 	"time"
@@ -12,6 +14,11 @@ import (
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/ecr"
 	"github.com/google/go-containerregistry/pkg/authn"
+)
+
+const (
+	defaultMaxTTL = 60 //in Minutes
+	envMaxTTL     = "ECR_TOKEN_MAX_TTL"
 )
 
 type ecrClient interface {
@@ -28,6 +35,7 @@ type cachedAuthConfig struct {
 // It caches the authorization token until it expires reducing the round-trips to ECR.
 type ecrAuthenticator struct {
 	client ecrClient
+	maxTTL time.Time
 	cache  atomic.Pointer[cachedAuthConfig]
 }
 
@@ -58,6 +66,11 @@ func (authenticator *ecrAuthenticator) Authorization() (*authn.AuthConfig, error
 	}
 	authConfig := &authn.AuthConfig{Username: username, Password: password}
 
+	// Retire token after max ttl
+	if time.Now().Add(authenticator.maxTTL).Before(expiry) {
+		expiry = time.Now().Add(authenticator.maxTTL)
+	}
+
 	// Cache the result and return it.
 	authenticator.cache.Store(&cachedAuthConfig{
 		AuthConfig: authConfig,
@@ -68,5 +81,12 @@ func (authenticator *ecrAuthenticator) Authorization() (*authn.AuthConfig, error
 
 // NewAuthenticator returns a new Authenticator instance from the given ECR client.
 func NewAuthenticator(client *ecr.Client) authn.Authenticator {
-	return &ecrAuthenticator{client: client}
+	ttl, err := strconv.Atoi(os.Getenv(envMaxTTL))
+	if err != nil {
+		ttl = defaultMaxTTL
+	}
+	return &ecrAuthenticator{
+		client: client,
+		maxTTL: ttl * time.Minute,
+	}
 }
