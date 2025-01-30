@@ -27,7 +27,7 @@ func (keychain *ecrKeychain) Resolve(resource authn.Resource) (authn.Authenticat
 	if reg == nil {
 		return authn.Anonymous, nil
 	}
-	key := reg.Region + "/" + strconv.FormatBool(reg.FIPS)
+	key := reg.DNSSuffix + "/" + reg.Region + "/" + strconv.FormatBool(reg.FIPS)
 	keychain.cacheMu.RLock()
 	if auth, ok := keychain.cache[key]; ok {
 		keychain.cacheMu.RUnlock()
