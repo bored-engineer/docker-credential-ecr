@@ -9,6 +9,7 @@ import (
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/service/ecr"
+	"github.com/aws/aws-sdk-go-v2/service/ecrpublic"
 	"github.com/google/go-containerregistry/pkg/authn"
 )
 
@@ -33,20 +34,26 @@ func (keychain *ecrKeychain) Resolve(resource authn.Resource) (authn.Authenticat
 		return auth, nil
 	}
 	keychain.cacheMu.RUnlock()
-	client := ecr.NewFromConfig(keychain.cfg, func(opts *ecr.Options) {
-		opts.Region = reg.Region
-		if reg.FIPS {
-			opts.EndpointOptions.UseFIPSEndpoint = aws.FIPSEndpointStateEnabled
-		}
-	})
-	authenticator := NewAuthenticatorWithEarlyExpiry(client, keychain.earlyExpiry)
+	var auth authn.Authenticator
+	if reg.DNSSuffix == ecrPublicDomain {
+		auth = NewPublicAuthenticatorWithEarlyExpiry(ecrpublic.NewFromConfig(keychain.cfg, func(opts *ecrpublic.Options) {
+			opts.Region = reg.Region
+		}), keychain.earlyExpiry)
+	} else {
+		auth = NewAuthenticatorWithEarlyExpiry(ecr.NewFromConfig(keychain.cfg, func(opts *ecr.Options) {
+			opts.Region = reg.Region
+			if reg.FIPS {
+				opts.EndpointOptions.UseFIPSEndpoint = aws.FIPSEndpointStateEnabled
+			}
+		}), keychain.earlyExpiry)
+	}
 	keychain.cacheMu.Lock()
 	defer keychain.cacheMu.Unlock()
 	if auth, ok := keychain.cache[key]; ok {
 		return auth, nil
 	}
-	keychain.cache[key] = authenticator
-	return authenticator, nil
+	keychain.cache[key] = auth
+	return auth, nil
 }
 
 // NewKeychainWithEarlyExpiry returns a new Keychain instance with a custom earlyExpiry value.
